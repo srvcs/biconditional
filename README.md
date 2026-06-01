@@ -1,57 +1,69 @@
 # srvcs-biconditional
 
-The biconditional orchestrator of the srvcs.cloud distributed standard library.
+## Name
 
-Its single concern: **does `a` hold if and only if `b` holds?** It does no logic
-of its own. A biconditional `a <-> b` is the conjunction of the two implications:
+| Field | Value |
+| --- | --- |
+| Service | `srvcs-biconditional` |
+| Slug | `biconditional` |
+| Repository | `srvcs/biconditional` |
+| Package | `srvcs-biconditional` |
+| Kind | `orchestrator` |
 
-```
-a <-> b  ==  (a -> b) AND (b -> a)
-```
+## Function
 
-It asks [`srvcs-implication`](https://github.com/srvcs/implication) for each
-direction — `{"a": a, "b": b}` then `{"a": b, "b": a}` — and asks
-[`srvcs-and`](https://github.com/srvcs/and) to combine the two verdicts.
+logic: a if and only if b
+
+## Dependencies
+
+| Dependency | Repository |
+| --- | --- |
+| `srvcs-implication` | [srvcs/implication](https://github.com/srvcs/implication) |
+| `srvcs-and` | [srvcs/and](https://github.com/srvcs/and) |
 
 ## API
 
 | Method | Path | Purpose |
 | --- | --- | --- |
-| `GET` | `/` | Service identity, concern, and dependency list |
-| `POST` | `/` | Does `a` hold if and only if `b`? |
-| `GET` | `/healthz` `/readyz` `/metrics` `/openapi.json` | srvcs service standard surface |
+| `GET` | `/` | Service identity |
+| `POST` | `/` | Evaluate the service function |
+| `GET` | `/healthz` | Liveness probe |
+| `GET` | `/readyz` | Readiness probe |
+| `GET` | `/metrics` | Prometheus metrics |
+| `GET` | `/openapi.json` | OpenAPI document |
 
-```sh
-curl -s -X POST localhost:8080/ -H 'content-type: application/json' -d '{"a": true, "b": true}'
-# {"a":true,"b":true,"result":true}
-```
+## Inputs
 
-Responses:
+| Name | Type | Required |
+| --- | --- | --- |
+| `a` | `json` | yes |
+| `b` | `json` | yes |
 
-- `200 {"a": x, "b": y, "result": true | false}` — evaluated.
-- `422` — invalid input, forwarded from a leaf dependency.
-- `503` — a dependency is unavailable.
+## Outputs
 
-## Dependencies
-
-- [`srvcs-implication`](https://github.com/srvcs/implication)
-- [`srvcs-and`](https://github.com/srvcs/and)
-
-This is an orchestrator over boolean leaf services; its operands are booleans.
-Input validation propagates from the leaf dependencies via their `422`
-responses — this service does not validate operands itself.
+| Name | Type |
+| --- | --- |
+| `a` | `json` |
+| `b` | `json` |
+| `result` | `boolean` |
 
 ## Configuration
 
 | Variable | Default | Purpose |
 | --- | --- | --- |
 | `SRVCS_BIND_ADDR` | `0.0.0.0:8080` | Bind address |
-| `SRVCS_IMPLICATION_URL` | `http://127.0.0.1:8080` | Base URL of `srvcs-implication` |
-| `SRVCS_AND_URL` | `http://127.0.0.1:8080` | Base URL of `srvcs-and` |
 | `SRVCS_ENV` | `development` | Environment label for logs |
 | `RUST_LOG` | `info,tower_http=info` | Tracing filter |
+| `SRVCS_AND_URL` | `http://127.0.0.1:8080` | Base URL for srvcs-and |
+| `SRVCS_IMPLICATION_URL` | `http://127.0.0.1:8080` | Base URL for srvcs-implication |
 
-## Local checks
+## Error Behavior
+
+- `422` means the request could not be evaluated for the documented input shape.
+- `503` means a required dependency was unavailable or returned an unexpected response.
+- Dependency validation errors are forwarded when this service delegates validation.
+
+## Local Checks
 
 ```sh
 cargo fmt --check
@@ -59,10 +71,8 @@ cargo clippy --all-targets -- -D warnings
 cargo test
 ```
 
-Orchestration tests stand up mock `srvcs-implication` and `srvcs-and` services
-in-process, covering the truth table, a degraded dependency (`503`), and a
-forwarded `422`. See [`srvcs/platform`](https://github.com/srvcs/platform) for
-the shared standard.
+See the [srvcs service standard](https://github.com/srvcs/platform/blob/main/STANDARD.md) for the full operational contract.
 
-> Note: the `cargoHash` in `flake.nix` is inherited from the template and must be
-> refreshed with a `nix build` before the Nix gates pass.
+## Metadata
+
+Machine-readable service metadata lives in `srvcs.yaml`. Keep it aligned with this README when the service contract changes.
